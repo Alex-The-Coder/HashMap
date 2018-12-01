@@ -2,7 +2,7 @@
 #define HASHMAP_H_
 
 #include <functional>
-#include "Node.h"
+#include "MapIterator.h"
 using namespace std;
 
 enum MapSize {SMALL, MEDIUM, LARGE, X_LARGE};
@@ -13,7 +13,9 @@ class HashMap
 private:
 	Node<K, V>** buckets;
 	long size;
+	long count;
 	function<long (K&)> hasher;
+	long* mods = new long(0);
 
 	unsigned long calculateHash(K& key)
 	{
@@ -27,6 +29,7 @@ private:
 public:
 	HashMap(function<long (K&)> hasher)
 	{
+		this->count = 0;
 		this->size = 16;
 
 		this->buckets = new Node<K, V>*[this->size];
@@ -57,6 +60,7 @@ public:
 			break;
 		}
 
+		this->count = 0;
 		this->buckets = new Node<K, V>*[this->size];
 		for (int i = 0; i < this->size; i++)
 		{
@@ -79,12 +83,15 @@ public:
 			}
 		}
 		delete[] buckets;
+		delete mods;
 	}
 
 	HashMap(const HashMap<K, V>& orig)
 	{
+		this->count = orig.count;
 		this->size = orig.size;
 		this->hasher = orig.hasher;
+		this->mods = new long(*orig.mods);
 
 		this->buckets = new Node<K, V>*[this->size];
 		for (int i = 0; i < this->size; i++)
@@ -115,9 +122,12 @@ public:
 				}
 			}
 			delete[] buckets;
+			delete mods;
 
+			this->count = copy.count;
 			this->size = copy.size;
 			this->hasher = copy.hasher;
+			this->mods = new long(*copy.mods);
 
 			this->buckets = new Node<K, V>*[this->size];
 			for (int i = 0; i < this->size; i++)
@@ -175,6 +185,8 @@ public:
 					nodePtr->getPrev()->getNext() = nodePtr->getNext();
 				}
 				delete nodePtr;
+				count--;
+				(*mods)++;
 				return;
 			}
 			nodePtr = nodePtr->getNext();
@@ -194,6 +206,8 @@ public:
 		{
 			Node<K, V>* node = new Node<K, V>(hash, key, value);
 			this->buckets[bucket] = node;
+			count++;
+			(*mods)++;
 		}
 		else
 		{
@@ -204,12 +218,16 @@ public:
 				{
 					V val = value;
 					nodePtr->getValue() = val;
+					count++;
+					(*mods)++;
 					return;
 				}
 				prev = nodePtr;
 				nodePtr = nodePtr->getNext();
 			}
 			prev->getNext() = new Node<K, V>(hash, key, value, prev);
+			count++;
+			(*mods)++;
 		}
 	}
 
@@ -245,6 +263,21 @@ public:
 				nodePtr = nodePtr->getNext();
 			}
 		}
+	}
+
+	int getCount()
+	{
+		return count;
+	}
+
+	MapIterator<K, V> begin()
+	{
+		return MapIterator<K, V>(buckets, size, mods);
+	}
+
+	MapIterator<K, V> end()
+	{
+		return MapIterator<K, V>(buckets, size, mods, true);
 	}
 };
 
